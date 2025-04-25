@@ -22,6 +22,23 @@ def gaussian_rbf_kernel(X, Y, sigma):
     K = np.exp(-distances / (2 * sigma ** 2))
     return K
 
+def linear_kernel(X, Y):
+    """K(x,y) = xᵀy."""
+    return np.dot(X, Y.T)
+
+def polynomial_kernel(X, Y, degree=3, coef0=1):
+    """K(x,y) = (xᵀy + coef0)^degree."""
+    return (np.dot(X, Y.T) + coef0) ** degree
+
+def laplacian_kernel(X, Y, gamma):
+    """
+    K(x,y) = exp(-γ ‖x−y‖₁).
+    Here gamma plays the role of 1/σ in the Laplace RBF.
+    """
+    # compute manhattan distances
+    dists = np.sum(np.abs(X[:, None, :] - Y[None, :, :]), axis=2)
+    return np.exp(-gamma * dists)
+
 def median_heuristic(X, Y):
     """
     Compute the median heuristic for bandwidth selection using a memory-efficient method.
@@ -34,7 +51,7 @@ def median_heuristic(X, Y):
     median_val = np.median(dists[dists > 0])
     return median_val
 
-def compute_mmd_stat(X, Y, kernel='rbf', bandwidth='median', preprocess=False):
+def compute_mmd_stat(X, Y, kernel='rbf', bandwidth='median', preprocess=False, **kernel_params):
     """
     Helper function to compute the squared MMD statistic between X and Y.
     """
@@ -55,8 +72,28 @@ def compute_mmd_stat(X, Y, kernel='rbf', bandwidth='median', preprocess=False):
         K_xx = gaussian_rbf_kernel(X, X, sigma)
         K_yy = gaussian_rbf_kernel(Y, Y, sigma)
         K_xy = gaussian_rbf_kernel(X, Y, sigma)
+
+    elif kernel == 'linear':
+        K_xx = linear_kernel(X, X)
+        K_yy = linear_kernel(Y, Y)
+        K_xy = linear_kernel(X, Y)
+
+    elif kernel == 'poly':
+        degree = kernel_params.get('degree', 3)
+        coef0  = kernel_params.get('coef0', 1)
+        K_xx = polynomial_kernel(X, X, degree, coef0)
+        K_yy = polynomial_kernel(Y, Y, degree, coef0)
+        K_xy = polynomial_kernel(X, Y, degree, coef0)
+
+    elif kernel == 'laplace':
+        # gamma either numeric or use 1/median pairwise distance
+        gamma = (1 / median_heuristic(X, Y)) if bandwidth == 'median' else float(bandwidth)
+        K_xx = laplacian_kernel(X, X, gamma)
+        K_yy = laplacian_kernel(Y, Y, gamma)
+        K_xy = laplacian_kernel(X, Y, gamma)
+
     else:
-        raise NotImplementedError("Currently, only the 'rbf' kernel is supported.")
+        raise NotImplementedError(f"Kernel '{kernel}' not supported.")
     
     m = X.shape[0]
     n = Y.shape[0]
@@ -69,7 +106,7 @@ def compute_mmd_stat(X, Y, kernel='rbf', bandwidth='median', preprocess=False):
     return mmd_squared
 
 def mmd_test(X, Y, kernel='rbf', bandwidth='median', preprocess=False, 
-             return_p_value=False, num_permutations=1000):
+             return_p_value=False, num_permutations=10 ,**kernel_params):
     """
     Compute the MMD statistic between two datasets and, optionally, a permutation-based p-value.
     
@@ -78,7 +115,13 @@ def mmd_test(X, Y, kernel='rbf', bandwidth='median', preprocess=False,
         If return_p_value is True: a tuple (mmd_squared, p_value).
     """
     # Calculate the observed MMD statistic.
-    stat_observed = compute_mmd_stat(X, Y, kernel, bandwidth, preprocess)
+    stat_observed = compute_mmd_stat(
+        X, Y,
+        kernel=kernel,
+        bandwidth=bandwidth,
+        preprocess=preprocess,
+        **kernel_params
+    )
     
     if not return_p_value:
         return stat_observed
@@ -88,7 +131,7 @@ def mmd_test(X, Y, kernel='rbf', bandwidth='median', preprocess=False,
     # Compute the p-value using the permutation test.
     p_value = permutation_test_statistic(
         X, Y, stat_fn=compute_mmd_stat, num_permutations=num_permutations,
-        kernel=kernel, bandwidth=bandwidth, preprocess=preprocess
+        kernel=kernel, bandwidth=bandwidth, preprocess=preprocess,**kernel_params
     )
     
     return stat_observed, p_value
