@@ -6,6 +6,19 @@ from sklearn.gaussian_process.kernels import Matern
 from sklearn.metrics.pairwise import rbf_kernel, linear_kernel, polynomial_kernel, laplacian_kernel
 # No need to import permutation_test here until we actually use it.
 
+def median_heuristic(X, Y):
+    """
+    Compute the median heuristic for bandwidth selection efficiently.
+    """
+    X = np.asarray(X)
+    Y = np.asarray(Y)
+    Z = np.vstack([X, Y])
+    # Use pdist for efficient pairwise distance computation
+    dists = pdist(Z, metric='euclidean')
+    median_val = np.median(dists[dists > 0])
+    return median_val
+
+
 def compute_mmd_stat(X, Y, kernel='rbf', bandwidth='median', preprocess=False, **kernel_params):
     """
     Helper function to compute the squared MMD statistic between X and Y using scikit-learn kernels.
