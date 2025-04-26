@@ -2,65 +2,23 @@
 
 import numpy as np
 from scipy.spatial.distance import pdist
+from sklearn.gaussian_process.kernels import Matern
+from sklearn.metrics.pairwise import rbf_kernel, linear_kernel, polynomial_kernel, laplacian_kernel
 # No need to import permutation_test here until we actually use it.
-
-def gaussian_rbf_kernel(X, Y, sigma):
-    """
-    Compute the Gaussian RBF kernel matrix between samples in X and Y.
-    """
-    # Ensure inputs are numpy arrays.
-    X = np.asarray(X)
-    Y = np.asarray(Y)
-    
-    # Compute squared norms.
-    X_norm = np.sum(X ** 2, axis=1)
-    Y_norm = np.sum(Y ** 2, axis=1)
-    
-    # Calculate squared Euclidean distances using broadcasting.
-    distances = X_norm[:, None] + Y_norm[None, :] - 2 * np.dot(X, Y.T)
-    # Compute the kernel matrix.
-    K = np.exp(-distances / (2 * sigma ** 2))
-    return K
-
-def linear_kernel(X, Y):
-    """K(x,y) = xᵀy."""
-    return np.dot(X, Y.T)
-
-def polynomial_kernel(X, Y, degree=3, coef0=1):
-    """K(x,y) = (xᵀy + coef0)^degree."""
-    return (np.dot(X, Y.T) + coef0) ** degree
-
-def laplacian_kernel(X, Y, gamma):
-    """
-    K(x,y) = exp(-γ ‖x−y‖₁).
-    Here gamma plays the role of 1/σ in the Laplace RBF.
-    """
-    # compute manhattan distances
-    dists = np.sum(np.abs(X[:, None, :] - Y[None, :, :]), axis=2)
-    return np.exp(-gamma * dists)
-
-def median_heuristic(X, Y):
-    """
-    Compute the median heuristic for bandwidth selection using a memory-efficient method.
-    """
-    X = np.asarray(X)
-    Y = np.asarray(Y)
-    Z = np.vstack([X, Y])
-    # Use pdist for efficient computation.
-    dists = pdist(Z, metric='euclidean')
-    median_val = np.median(dists[dists > 0])
-    return median_val
 
 def compute_mmd_stat(X, Y, kernel='rbf', bandwidth='median', preprocess=False, **kernel_params):
     """
-    Helper function to compute the squared MMD statistic between X and Y.
+    Helper function to compute the squared MMD statistic between X and Y using scikit-learn kernels.
     """
     X = np.asarray(X)
     Y = np.asarray(Y)
     
     if preprocess:
-        # Include any additional preprocessing here if needed.
+        # Include any additional preprocessing here if needed
         pass
+
+    m = X.shape[0]
+    n = Y.shape[0]
 
     if kernel == 'rbf':
         if bandwidth == 'median':
@@ -69,9 +27,12 @@ def compute_mmd_stat(X, Y, kernel='rbf', bandwidth='median', preprocess=False, *
             sigma = float(bandwidth)
         else:
             raise ValueError("Bandwidth must be 'median' or a numeric value.")
-        K_xx = gaussian_rbf_kernel(X, X, sigma)
-        K_yy = gaussian_rbf_kernel(Y, Y, sigma)
-        K_xy = gaussian_rbf_kernel(X, Y, sigma)
+        
+        # Convert sigma to gamma parameter for scikit-learn (gamma = 1/(2*sigma²))
+        gamma = 1.0 / (2 * sigma**2)
+        K_xx = rbf_kernel(X, X, gamma=gamma)
+        K_yy = rbf_kernel(Y, Y, gamma=gamma)
+        K_xy = rbf_kernel(X, Y, gamma=gamma)
 
     elif kernel == 'linear':
         K_xx = linear_kernel(X, X)
@@ -80,26 +41,47 @@ def compute_mmd_stat(X, Y, kernel='rbf', bandwidth='median', preprocess=False, *
 
     elif kernel == 'poly':
         degree = kernel_params.get('degree', 3)
-        coef0  = kernel_params.get('coef0', 1)
-        K_xx = polynomial_kernel(X, X, degree, coef0)
-        K_yy = polynomial_kernel(Y, Y, degree, coef0)
-        K_xy = polynomial_kernel(X, Y, degree, coef0)
+        coef0 = kernel_params.get('coef0', 1)
+        K_xx = polynomial_kernel(X, X, degree=degree, coef0=coef0)
+        K_yy = polynomial_kernel(Y, Y, degree=degree, coef0=coef0)
+        K_xy = polynomial_kernel(X, Y, degree=degree, coef0=coef0)
 
     elif kernel == 'laplace':
         # gamma either numeric or use 1/median pairwise distance
         gamma = (1 / median_heuristic(X, Y)) if bandwidth == 'median' else float(bandwidth)
-        K_xx = laplacian_kernel(X, X, gamma)
-        K_yy = laplacian_kernel(Y, Y, gamma)
-        K_xy = laplacian_kernel(X, Y, gamma)
+        K_xx = laplacian_kernel(X, X, gamma=gamma)
+        K_yy = laplacian_kernel(Y, Y, gamma=gamma)
+        K_xy = laplacian_kernel(X, Y, gamma=gamma)
+        
+    elif kernel == 'matern':
+        # Get parameters for the Matern kernel
+        length_scale = kernel_params.get('length_scale', 1.0)
+        if bandwidth == 'median':
+            length_scale = median_heuristic(X, Y)
+        elif isinstance(bandwidth, (float, int)):
+            length_scale = float(bandwidth)
+            
+        nu = kernel_params.get('nu', 1.5)
+        
+        # Use sklearn's Matern kernel implementation
+        matern = Matern(length_scale=length_scale, nu=nu)
+        K_xx = matern(X)
+        K_yy = matern(Y)
+        K_xy = matern(X, Y)
 
     else:
         raise NotImplementedError(f"Kernel '{kernel}' not supported.")
     
-    m = X.shape[0]
-    n = Y.shape[0]
-    # Compute unbiased estimators (remove self-similarities).
-    sum_K_xx = (np.sum(K_xx) - np.sum(np.diag(K_xx))) / (m * (m - 1))
-    sum_K_yy = (np.sum(K_yy) - np.sum(np.diag(K_yy))) / (n * (n - 1))
+    # Compute unbiased estimators (remove self-similarities)
+    # Vectorized operations with element-wise multiplication are faster
+    mask_xx = np.ones((m, m), dtype=bool)
+    np.fill_diagonal(mask_xx, False)
+    sum_K_xx = np.sum(K_xx[mask_xx]) / (m * (m - 1))
+    
+    mask_yy = np.ones((n, n), dtype=bool)
+    np.fill_diagonal(mask_yy, False)
+    sum_K_yy = np.sum(K_yy[mask_yy]) / (n * (n - 1))
+    
     sum_K_xy = np.sum(K_xy) / (m * n)
     
     mmd_squared = sum_K_xx + sum_K_yy - 2 * sum_K_xy

@@ -18,6 +18,7 @@ KERNEL_EXPERIMENTS = [
     {'kernel':'poly',   'bandwidth':None, 'degree':3, 'coef0':1},
     {'kernel':'laplace','bandwidth':'median'},
     {'kernel':'laplace','bandwidth':0.5},
+    {'kernel':'matern', 'bandwidth':'median', 'length_scale':1.0, 'nu':1.5},
 ]
 
 # how many permutations to try

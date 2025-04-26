@@ -1,5 +1,6 @@
 import numpy as np
 from sklearn.metrics.pairwise import rbf_kernel, linear_kernel, polynomial_kernel, laplacian_kernel
+from sklearn.gaussian_process.kernels import Matern
 from scipy.spatial.distance import pdist, squareform
 import numba
 from .permutation_test_optimized import permutation_test_statistic
@@ -15,6 +16,8 @@ def median_heuristic(X, Y):
     dists = pdist(Z, metric='euclidean')
     median_val = np.median(dists[dists > 0])
     return median_val
+
+
 
 def compute_mmd_stat(X, Y, kernel='rbf', bandwidth='median', preprocess=False, **kernel_params):
     """
@@ -62,6 +65,22 @@ def compute_mmd_stat(X, Y, kernel='rbf', bandwidth='median', preprocess=False, *
         K_xx = laplacian_kernel(X, X, gamma=gamma)
         K_yy = laplacian_kernel(Y, Y, gamma=gamma)
         K_xy = laplacian_kernel(X, Y, gamma=gamma)
+        
+    elif kernel == 'matern':
+        # Get parameters for the Matern kernel
+        length_scale = kernel_params.get('length_scale', 1.0)
+        if bandwidth == 'median':
+            length_scale = median_heuristic(X, Y)
+        elif isinstance(bandwidth, (float, int)):
+            length_scale = float(bandwidth)
+            
+        nu = kernel_params.get('nu', 1.5)
+        
+        # Use sklearn's Matern kernel implementation
+        matern = Matern(length_scale=length_scale, nu=nu)
+        K_xx = matern(X)
+        K_yy = matern(Y)
+        K_xy = matern(X, Y)
 
     else:
         raise NotImplementedError(f"Kernel '{kernel}' not supported.")
@@ -88,26 +107,28 @@ def mmd_test(X, Y, kernel='rbf', bandwidth='median', preprocess=False,
     
     Parameters:
         X, Y: Input datasets
-        kernel: Kernel type ('rbf', 'linear', 'poly', 'laplace')
-        bandwidth: Bandwidth parameter for the kernel
+        kernel: Kernel type ('rbf', 'linear', 'poly', 'laplace', 'matern')
+        bandwidth: Bandwidth parameter for the kernel (for Matern, this is the length_scale)
         preprocess: Whether to preprocess the data
         return_p_value: Whether to return the p-value
         num_permutations: Number of permutations for p-value computation
         n_jobs: Number of parallel jobs
-        **kernel_params: Additional parameters for the kernel (e.g., degree for poly kernel)
+        **kernel_params: Additional parameters for the kernel
+                         For 'matern': 'nu' (smoothness parameter, default=1.5)
+                         For 'poly': 'degree' (default=3), 'coef0' (default=1)
     
     Returns:
         If return_p_value is False: a float representing the squared MMD statistic.
         If return_p_value is True: a tuple (mmd_squared, p_value).
+        
+    Notes:
+        The Matern kernel uses scikit-learn's implementation from sklearn.gaussian_process.kernels.Matern.
     """
     # Calculate the observed MMD statistic
     stat_observed = compute_mmd_stat(X, Y, kernel, bandwidth, preprocess, **kernel_params)
     
     if not return_p_value:
         return stat_observed
-    
-    # Import the permutation test function
-    
     
     # Compute the p-value using the parallel permutation test
     p_value = permutation_test_statistic(

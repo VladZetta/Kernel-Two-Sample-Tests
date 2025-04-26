@@ -1,0 +1,5 @@
+Experiment,Avg MMD²,Rejection Rate (%),Best Kernel,Best p-value
+Limited Data (n=50),8.636355e+00,100.0,rbf,0.0099
+Subtle Diff (Noise),-1.543644e-02,0.0,linear,0.5545
+Subtle Diff (Blur),-4.764862e-02,14.3,rbf,0.0396
+H0 True (Split),-2.035937e-02,0.0,poly,0.6139
