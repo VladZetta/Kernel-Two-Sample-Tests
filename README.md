@@ -49,7 +49,7 @@ We focus on **Maximum Mean Discrepancy (MMD)** and its computational variants, a
     ```bash
     python experiments/real_data/run_experiment_optimized.py
     ```
-    Run optimization experiments on the MNIST dataset.
+    Run optimized experiments on the MNIST dataset.
 
     ```bash
     python experiments/real_data/run_two_different_digits.py
