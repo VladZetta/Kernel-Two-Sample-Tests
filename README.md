@@ -38,8 +38,33 @@ We focus on **Maximum Mean Discrepancy (MMD)** and its computational variants, a
     python experiments/run_synthetic.py
     ```
 3. Run real-data experiments:
+
+    ### Permutation Analysis
     ```bash
-    python experiments/run_realdata.py
+    python experiments/real_data/run_experiment_optimized_perm.py
+    ```
+    This script computes p-values for different permutations of the data.
+
+    ### MNIST Experiments
+    ```bash
+    python experiments/real_data/run_experiment_optimized.py
+    ```
+    Run optimization experiments on the MNIST dataset.
+
+    ```bash
+    python experiments/real_data/run_two_different_digits.py
+    ```
+    Run experiments comparing two different digits from the MNIST dataset.
+
+    ### GAN Experiments
+    ```bash
+    # Train GANs
+    python experiments/real_data/train_gan.py  # Train GAN on MNIST
+    python experiments/real_data/train_gan_CIFAR.py  # Train GAN on CIFAR
+
+    # Test GANs
+    python experiments/real_data/run_gan_exp.py  # Test GAN on MNIST
+    python experiments/real_data/run_gan_CIFAR.py  # Test GAN on CIFAR
     ```
 
 Results and figures will be saved automatically inside `results/` and `figs/` folders.
