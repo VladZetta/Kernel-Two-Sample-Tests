@@ -84,7 +84,7 @@ def main():
     plt.title('MMD Test Power vs Mean Shift (d=1)')
     plt.legend()
     plt.tight_layout()
-    plt.savefig(os.path.join(project_root, 'figs', 'power_vs_delta_d1.png'))
+    plt.savefig(os.path.join(project_root, 'figs', 'power_vs_delta_d1.png'), dpi=600)
     print(f"Figure saved: {os.path.join('figs', 'power_vs_delta_d1.png')}")
     plt.close()
 
@@ -106,13 +106,13 @@ def main():
     plt.title('MMD Test Power vs Sample Size (d=1)')
     plt.legend()
     plt.tight_layout()
-    plt.savefig(os.path.join(project_root, 'figs', 'power_vs_n_d1.png'))
+    plt.savefig(os.path.join(project_root, 'figs', 'power_vs_n_d1.png'), dpi=600)
     print(f"Figure saved: {os.path.join('figs', 'power_vs_n_d1.png')}")
     plt.close()
 
     # 3) Power vs Dimension for fixed n and delta
     print("\n=== Experiment 3: Power vs Dimension ===")
-    dims = [1, 2, 10, 50]
+    dims = [1, 2, 3, 5, 8, 10, 15, 20]
     n3 = 100
     delta3 = 0.5
     powers_dim = []
@@ -130,7 +130,7 @@ def main():
     plt.ylabel('Empirical Power')
     plt.title(f'MMD Test Power vs Dimension (n={n3}, \u03B4={delta3})')
     plt.tight_layout()
-    plt.savefig(os.path.join(project_root, 'figs', 'power_vs_dimension.png'))
+    plt.savefig(os.path.join(project_root, 'figs', 'power_vs_dimension.png'), dpi=600)
     print(f"Figure saved: {os.path.join('figs', 'power_vs_dimension.png')}")
     plt.close()
 
